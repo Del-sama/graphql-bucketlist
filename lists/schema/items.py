@@ -65,11 +65,12 @@ class UpdateItem(graphene.Mutation):
         item.save()
         return UpdateItem(message="Item successfully updated!")
 
+
 class DeleteItem(graphene.Mutation):
     message = graphene.String()
 
     class Arguments:
-        ite,_id = graphene.Int(required=True)
+        item_id = graphene.Int(required=True)
 
     def mutate(self, info, item_id):
         try:
@@ -81,16 +82,30 @@ class DeleteItem(graphene.Mutation):
 
 
 class Query(graphene.ObjectType):
-    items = graphene.List(ItemType, search=graphene.String())
+    items = graphene.List(
+        ItemType,
+        search=graphene.String(),
+        first=graphene.Int(),
+        skip=graphene.Int()
+        )
     item = graphene.Field(ItemType, item_id=graphene.Int())
 
-    def resolve_items(self, info, search=None, **kwargs):
+    def resolve_items(self, info, search=None, first=None, skip=None, **kwargs):
+        items = Item.objects.all()
+
         if search:
             filter = (
                 Q(title__icontains=search)
             )
-            return Item.objects.filter(filter)
-        return Item.objects.all()
+            return items.filter(filter)
+
+        if skip:
+            items = items[skip::]
+
+        if first:
+            items = items[:first]
+
+        return items
 
     def resolve_item(self, info, item_id):
         try:

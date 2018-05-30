@@ -6,6 +6,7 @@ from graphene_django import DjangoObjectType
 from graphql import GraphQLError
 
 from django.db.models import Q
+from django.contrib.auth import get_user_model
 
 from ..models import Bucketlist
 from user.schema import UserType
@@ -86,18 +87,35 @@ class DeleteBucketlist(graphene.Mutation):
 
 
 class Query(graphene.ObjectType):
-    bucketlists = graphene.List(BucketlistType, search=graphene.String())
+    bucketlists = graphene.List(
+        BucketlistType,
+        search=graphene.String(),
+        first=graphene.Int(),
+        skip=graphene.Int()
+        )
     bucketlist = graphene.Field(BucketlistType, bucketlist_id=graphene.Int())
-    user_bucketlists = graphene.List(BucketlistType, user_id=graphene.Int())
+    user_bucketlists = graphene.List(
+        BucketlistType,
+        user_id=graphene.Int(),
+        first=graphene.Int(),
+        skip=graphene.Int()
+        )
 
-    def resolve_bucketlists(self, info, search=None, **kwargs):
+    def resolve_bucketlists(self, info, search=None, first=None, skip=None, **kwargs):
+        bucketlists = Bucketlist.objects.all()
         if search:
             filter = (
                 Q(name__icontains=search)
             )
-            return Bucketlist.objects.filter(filter)
+            bucketlists = bucketlists.filter(filter)
 
-        return Bucketlist.objects.all()
+        if skip:
+            bucketlists = bucketlists[skip::]
+
+        if first:
+            bucketlists = bucketlists[:first]
+
+        return bucketlists
 
     def resolve_bucketlist(self, info, bucketlist_id):
         try:
@@ -105,11 +123,20 @@ class Query(graphene.ObjectType):
         except Bucketlist.DoesNotExist:
             raise GraphQLError("Bucketlist does not exist")
 
-    # def resolve_user_buckelist(self, info, user_id, **kwargs):
-    #     try:
-    #         return Bucketlist.objects.filter(user_id=user_id)
-    #     except User.DoesNotExist:
-    #         raise GraphQLError("User does not exist")
+    def resolve_user_bucketlists(self, info, user_id, first=None, skip=None, **kwargs):
+        user = get_user_model().objects.get(id=user_id)
+
+        if user:
+            bucketlists = Bucketlist.objects.filter(user_id=user_id)
+            if skip:
+                bucketlists = bucketlists[skip::]
+
+            if first:
+                bucketlists = bucketlists[:first]
+
+            return bucketlists
+        else:
+            raise GraphQLError("User does not exist")
 
 
 class Mutation(graphene.ObjectType):
